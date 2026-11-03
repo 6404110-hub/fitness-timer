@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>健身计时 · 自动组间休息</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      background: #121212;
+      color: #f0f0f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1.5rem 1rem;
+    }
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      text-align: center;
+      letter-spacing: 1px;
+      color: #fff;
+    }
+    .container {
+      width: 100%;
+      max-width: 700px;
+      background: #1e1e1e;
+      border-radius: 2rem;
+      padding: 1.8rem 1.5rem;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+    .settings-panel {
+      background: #2a2a2a;
+      padding: 1.5rem;
+      border-radius: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .settings-panel h2 {
+      font-size: 1.2rem;
+      margin-bottom: 1rem;
+      color: #ccc;
+      font-weight: 500;
+      border-left: 4px solid #ff6b4a;
+      padding-left: 0.75rem;
+    }
+    .preset-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-end;
+      margin-bottom: 1.5rem;
+    }
+    .preset-row .field {
+      flex: 1 1 120px;
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: #aaa;
+      margin-bottom: 0.3rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    input[type="number"] {
+      width: 100%;
+      padding: 0.8rem 1rem;
+      border: none;
+      border-radius: 1rem;
+      background: #3a3a3a;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 500;
+      outline: 2px solid transparent;
+      transition: outline 0.15s;
+    }
+    input[type="number"]:focus {
+      outline: 2px solid #ff6b4a;
+      background: #3f3f3f;
+    }
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 2rem;
+      font-weight: 600;
+      transition: transform 0.1s, background 0.2s, opacity 0.2s;
+      font-family: inherit;
+      background: #ff6b4a;
+      color: #121212;
+      padding: 0.9rem 1.6rem;
+      font-size: 1rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      box-shadow: 0 4px 12px rgba(255, 107, 74, 0.25);
+      white-space: nowrap;
+    }
+    button:active {
+      transform: scale(0.96);
+    }
+    button.secondary {
+      background: #3a3a3a;
+      color: #eee;
+      box-shadow: none;
+    }
+    button.secondary:hover {
+      background: #4a4a4a;
+    }
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    .preset-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.7rem;
+      margin-top: 0.5rem;
+    }
+    .preset-item {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      background: #333;
+      padding: 0.7rem 1rem;
+      border-radius: 1.2rem;
+      gap: 0.5rem;
+    }
+    .preset-info {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.5rem 1rem;
+      font-size: 0.95rem;
+    }
+    .preset-name {
+      font-weight: 600;
+      color: #ffb4a2;
+    }
+    .preset-sets, .preset-rest {
+      color: #bbb;
+      background: #222;
+      padding: 0.2rem 0.7rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+    }
+    .preset-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .preset-actions button {
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+      background: #5a5a5a;
+      color: #fff;
+      box-shadow: none;
+    }
+    .preset-actions button.start-btn {
+      background: #ff6b4a;
+      color: #121212;
+    }
+    .preset-actions button:active {
+      transform: scale(0.95);
+    }
+
+    /* 主计时面板 */
+    .timer-panel {
+      background: #252525;
+      border-radius: 2rem;
+      padding: 2rem 1.5rem;
+      margin-top: 2rem;
+      box-shadow: inset 0 0 0 1px #3a3a3a;
+    }
+    .timer-status {
+      font-size: 1rem;
+      color: #ffb4a2;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 0.5rem;
+    }
+    .timer-display {
+      font-size: 4.5rem;
+      font-weight: 800;
+      text-align: center;
+      line-height: 1.2;
+      font-variant-numeric: tabular-nums;
+      color: #fff;
+      text-shadow: 0 0 20px rgba(255, 107, 74, 0.4);
+      margin: 0.5rem 0;
+    }
+    .timer-sub {
+      font-size: 1rem;
+      text-align: center;
+      color: #aaa;
+      margin-bottom: 1.5rem;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #3a3a3a;
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 1.5rem 0 1rem;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: #ff6b4a;
+      border-radius: 10px;
+      transition: width 0.2s linear;
+    }
+    .timer-actions {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 0.5rem;
+    }
+
+    .notification-badge {
+      background: #1e1e1e;
+      border-radius: 40px;
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+      text-align: center;
+      color: #ffb4a2;
+      border: 1px solid #ff6b4a;
+      margin-top: 1rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+      min-height: 2.8rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .notification-badge.show {
+      opacity: 1;
+    }
+
+    .empty-message {
+      color: #777;
+      text-align: center;
+      padding: 1.5rem;
+      font-style: italic;
+    }
+
+    .footer-note {
+      font-size: 0.8rem;
+      color: #666;
+      margin-top: 2rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>⚡ 自动组间休息</h1>
+  <div class="container">
+    <!-- 预设管理 -->
+    <div class="settings-panel">
+      <h2>➕ 添加动作预设</h2>
+      <div class="preset-row">
+        <div class="field">
+          <label>动作名称</label>
+          <input type="text" id="presetName" placeholder="例如：卧推" value="深蹲">
+        </div>
+        <div class="field">
+          <label>组数</label>
+          <input type="number" id="presetSets" min="1" max="99" value="3">
+        </div>
+        <div class="field">
+          <label>休息时间(秒)</label>
+          <input type="number" id="presetRest" min="1" max="600" value="60">
+        </div>
+        <button id="addPresetBtn" style="flex:0 0 auto;">添加</button>
+      </div>
+      <div id="presetListContainer">
+        <!-- 预设列表会动态渲染到这里 -->
+      </div>
+    </div>
+
+    <!-- 计时器面板 -->
+    <div class="timer-panel" id="timerPanel">
+      <div class="timer-status" id="timerStatus">准备就绪</div>
+      <div class="timer-display" id="timerDisplay">00:00</div>
+      <div class="timer-sub" id="timerSub">选择上方动作开始</div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="timer-actions">
+        <button id="skipRestBtn" class="secondary" disabled>跳过休息</button>
+        <button id="stopAllBtn" class="secondary" disabled>停止</button>
+      </div>
+      <div class="notification-badge" id="notificationMsg"></div>
+    </div>
+  </div>
+  <div class="footer-note">点击动作自动开始第一组 · 休息结束自动进入下一组</div>
+
+  <script>
+    (function() {
+      // ---------- 状态管理 ----------
+      // 预设动作数组 [{ id, name, sets, restSec }]
+      let presets = [
+        { id: 'squat', name: '深蹲', sets: 3, restSec: 60 },
+        { id: 'bench', name: '卧推', sets: 4, restSec: 90 },
+      ];
+
+      // 当前进行中的训练状态
+      let active = {
+        presetId: null,          // 当前使用哪个预设
+        presetName: '',
+        totalSets: 0,            // 总组数
+        currentSet: 0,           // 当前第几组 (1-based)
+        restSec: 0,              // 休息时长(秒)
+        phase: 'idle',           // 'idle' | 'work' | 'rest' | 'finished'
+        timer: null,             // setInterval 句柄
+        remainingSec: 0,         // 当前阶段剩余秒数
+        totalPhaseSec: 0,        // 当前阶段总秒数（用于进度条）
+        nextPhase: null,         // 用于记录休息结束后的动作
+      };
+
+      // 用于音频提醒
+      let audioCtx = null;
+      let notificationTimeout = null;
+
+      // DOM 元素
+      const presetListContainer = document.getElementById('presetListContainer');
+      const presetNameInput = document.getElementById('presetName');
+      const presetSetsInput = document.getElementById('presetSets');
+      const presetRestInput = document.getElementById('presetRest');
+      const addPresetBtn = document.getElementById('addPresetBtn');
+
+      const timerStatus = document.getElementById('timerStatus');
+      const timerDisplay = document.getElementById('timerDisplay');
+      const timerSub = document.getElementById('timerSub');
+      const progressFill = document.getElementById('progressFill');
+      const skipRestBtn = document.getElementById('skipRestBtn');
+      const stopAllBtn = document.getElementById('stopAllBtn');
+      const notificationMsg = document.getElementById('notificationMsg');
+
+      // ---------- 辅助函数 ----------
+      function formatTime(sec) {
+        if (sec < 0) sec = 0;
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+      }
+
+      // 初始化/获取 AudioContext
+      function getAudioContext() {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        return audioCtx;
+      }
+
+      // 播放提示音 (短哔)
+      function playBeep(freq = 880, duration = 0.15, vol = 0.2) {
+        try {
+          const ctx = getAudioContext();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.value = vol;
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + duration);
+        } catch (e) {
+          console.warn('音频播放失败', e);
+        }
+      }
+
+      // 播放休息开始 / 结束的不同声音
+      function playRestStartSound() {
+        playBeep(660, 0.2, 0.25);
+        setTimeout(() => playBeep(880, 0.2, 0.2), 200);
+      }
+      function playRestEndSound() {
+        playBeep(523.25, 0.2, 0.25); // C5
+        setTimeout(() => playBeep(659.25, 0.2, 0.25), 200); // E5
+        setTimeout(() => playBeep(783.99, 0.3, 0.3), 400); // G5
+      }
+      function playWorkStartSound() {
+        playBeep(880, 0.1, 0.2);
+      }
+
+      // 显示短暂通知
+      function showNotification(text, isSuccess = false) {
+        notificationMsg.textContent = text;
+        notificationMsg.classList.add('show');
+        if (notificationTimeout) clearTimeout(notificationTimeout);
+        notificationTimeout = setTimeout(() => {
+          notificationMsg.classList.remove('show');
+        }, 2500);
+      }
+
+      // 更新UI根据active状态
+      function updateTimerUI() {
+        // 状态文本 & 副文本
+        if (active.phase === 'idle') {
+          timerStatus.textContent = '准备就绪';
+          timerDisplay.textContent = '00:00';
+          timerSub.textContent = '点击上方动作开始';
+          progressFill.style.width = '0%';
+          skipRestBtn.disabled = true;
+          stopAllBtn.disabled = true;
+        } else if (active.phase === 'work') {
+          timerStatus.textContent = `${active.presetName} · 第 ${active.currentSet}/${active.totalSets} 组`;
+          timerSub.textContent = '锻炼中…';
+          skipRestBtn.disabled = true;
+          stopAllBtn.disabled = false;
+        } else if (active.phase === 'rest') {
+          timerStatus.textContent = `休息中 · 下一组 ${active.currentSet + 1}/${active.totalSets}`;
+          timerSub.textContent = `休息 ${active.restSec} 秒`;
+          skipRestBtn.disabled = false;
+          stopAllBtn.disabled = false;
+        } else if (active.phase === 'finished') {
+          timerStatus.textContent = '训练完成 🎉';
+          timerDisplay.textContent = '00:00';
+          timerSub.textContent = '所有组已完成';
+          progressFill.style.width = '100%';
+          skipRestBtn.disabled = true;
+          stopAllBtn.disabled = true;
+        }
+
+        // 更新计时显示
+        if (active.phase === 'work' || active.phase === 'rest') {
+          timerDisplay.textContent = formatTime(active.remainingSec);
+          // 进度条: 已消耗比例
+          if (active.totalPhaseSec > 0) {
+            const percent = ((active.totalPhaseSec - active.remainingSec) / active.totalPhaseSec) * 100;
+            progressFill.style.width = `${Math.min(100, percent)}%`;
+          } else {
+            progressFill.style.width = '0%';
+          }
+        } else if (active.phase === 'idle') {
+          timerDisplay.textContent = '00:00';
+          progressFill.style.width = '0%';
+        } else if (active.phase === 'finished') {
+          timerDisplay.textContent = '00:00';
+        }
+      }
+
+      // 停止所有计时器
+      function stopTimer() {
+        if (active.timer) {
+          clearInterval(active.timer);
+          active.timer = null;
+        }
+      }
+
+      // 重置active到空闲 (不自动开始)
+      function resetToIdle() {
+        stopTimer();
+        active = {
+          presetId: null,
+          presetName: '',
+          totalSets: 0,
+          currentSet: 0,
+          restSec: 0,
+          phase: 'idle',
+          timer: null,
+          remainingSec: 0,
+          totalPhaseSec: 0,
+          nextPhase: null,
+        };
+        updateTimerUI();
+        skipRestBtn.disabled = true;
+        stopAllBtn.disabled = true;
+      }
+
+      // ---------- 核心训练流程 ----------
+      // 开始某个预设的训练
+      function startPreset(preset) {
+        // 如果已经有激活的训练，先停止
+        stopTimer();
+        // 重置一些状态
+        active.presetId = preset.id;
+        active.presetName = preset.name;
+        active.totalSets = preset.sets;
+        active.restSec = preset.restSec;
+        active.currentSet = 1;          // 从第一组开始
+        active.nextPhase = 'work';
+
+        // 播放开始音
+        playWorkStartSound();
+        showNotification(`开始 ${preset.name} 第 1 组`, false);
+
+        // 进入work阶段（第一组）
+        enterWorkPhase();
+      }
+
+      // 进入work阶段 (锻炼阶段)
+      function enterWorkPhase() {
+        stopTimer();
+        active.phase = 'work';
+        // 锻炼阶段时间: 默认每组固定 45 秒（可根据需要调整，但题目未指定每组时长，这里固定每组45秒）
+        const WORK_SEC = 45;
+        active.remainingSec = WORK_SEC;
+        active.totalPhaseSec = WORK_SEC;
+        updateTimerUI();
+
+        // 启动倒计时
+        active.timer = setInterval(() => {
+          if (active.phase !== 'work') return; // 安全
+
+          active.remainingSec -= 1;
+          updateTimerUI();
+
+          if (active.remainingSec <= 0) {
+            // 锻炼阶段结束
+            clearInterval(active.timer);
+            active.timer = null;
+            // 判断是否还有下一组
+            if (active.currentSet < active.totalSets) {
+              // 还有组，进入休息
+              enterRestPhase();
+            } else {
+              // 所有组完成
+              finishTraining();
+            }
+          }
+        }, 1000);
+      }
+
+      // 进入休息阶段
+      function enterRestPhase() {
+        stopTimer();
+        active.phase = 'rest';
+        active.remainingSec = active.restSec;
+        active.totalPhaseSec = active.restSec;
+        updateTimerUI();
+
+        // 休息开始提醒
+        playRestStartSound();
+        showNotification(`休息开始 · ${active.restSec} 秒`, true);
+
+        // 启动休息倒计时
+        active.timer = setInterval(() => {
+          if (active.phase !== 'rest') return;
+
+          active.remainingSec -= 1;
+          updateTimerUI();
+
+          if (active.remainingSec <= 0) {
+            // 休息结束
+            clearInterval(active.timer);
+            active.timer = null;
+
+            // 休息结束提醒
+            playRestEndSound();
+            showNotification(`休息结束！准备第 ${active.currentSet + 1} 组`, true);
+
+            // 进入下一组
+            active.currentSet += 1;
+            enterWorkPhase();  // 重新进入work阶段
+          }
+        }, 1000);
+      }
+
+      // 完成所有组
+      function finishTraining() {
+        stopTimer();
+        active.phase = 'finished';
+        updateTimerUI();
+        showNotification(`🎉 完成 ${active.presetName} 全部 ${active.totalSets} 组`, true);
+        playRestEndSound();
+        // 5秒后自动重置到空闲状态
+        setTimeout(() => {
+          if (active.phase === 'finished') {
+            resetToIdle();
+          }
+        }, 5000);
+      }
+
+      // 跳过休息 (手动)
+      function skipRest() {
+        if (active.phase !== 'rest') return;
+        // 清除当前计时器
+        stopTimer();
+        // 播放休息结束音
+        playRestEndSound();
+        showNotification(`跳过休息，进入第 ${active.currentSet + 1} 组`, true);
+        // 手动将当前组加1，进入work
+        active.currentSet += 1;
+        enterWorkPhase();
+      }
+
+      // 完全停止训练
+      function stopAll() {
+        stopTimer();
+        resetToIdle();
+        showNotification('训练已停止', false);
+      }
+
+      // ---------- 预设管理渲染 ----------
+      function renderPresets() {
+        if (presets.length === 0) {
+          presetListContainer.innerHTML = '<div class="empty-message">还没有动作，请添加</div>';
+          return;
+        }
+        let html = '<div class="preset-list">';
+        presets.forEach(preset => {
+          html += `
+            <div class="preset-item" data-preset-id="${preset.id}">
+              <div class="preset-info">
+                <span class="preset-name">${escapeHtml(preset.name)}</span>
+                <span class="preset-sets">${preset.sets} 组</span>
+                <span class="preset-rest">休息 ${preset.restSec}s</span>
+              </div>
+              <div class="preset-actions">
+                <button class="start-btn" data-action="start" data-id="${preset.id}">开始</button>
+                <button data-action="delete" data-id="${preset.id}">删除</button>
+              </div>
+            </div>
+          `;
+        });
+        html += '</div>';
+        presetListContainer.innerHTML = html;
+      }
+
+      // 简单的转义，防止XSS
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // 添加新预设
+      function addPreset() {
+        const name = presetNameInput.value.trim();
+        const sets = parseInt(presetSetsInput.value, 10);
+        const restSec = parseInt(presetRestInput.value, 10);
+
+        if (!name) {
+          alert('请输入动作名称');
+          return;
+        }
+        if (isNaN(sets) || sets < 1 || sets > 99) {
+          alert('组数需为 1-99 的整数');
+          return;
+        }
+        if (isNaN(restSec) || restSec < 1 || restSec > 600) {
+          alert('休息时间需为 1-600 秒');
+          return;
+        }
+
+        const newId = 'preset_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+        presets.push({
+          id: newId,
+          name: name,
+          sets: sets,
+          restSec: restSec,
+        });
+        renderPresets();
+
+        // 清空名称输入，其他保留方便连续添加
+        presetNameInput.value = '';
+        presetNameInput.focus();
+      }
+
+      // 删除预设 (通过ID)
+      function deletePresetById(id) {
+        presets = presets.filter(p => p.id !== id);
+        renderPresets();
+        // 如果正在进行的训练正是这个预设，则停止训练 (安全处理)
+        if (active.presetId === id) {
+          stopAll();
+        }
+      }
+
+      // 通过ID查找预设并开始
+      function startPresetById(id) {
+        const preset = presets.find(p => p.id === id);
+        if (preset) {
+          startPreset(preset);
+        } else {
+          alert('预设不存在');
+        }
+      }
+
+      // ---------- 事件绑定 ----------
+      // 使用事件委托处理预设列表中的按钮点击
+      presetListContainer.addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const action = btn.getAttribute('data-action');
+        const id = btn.getAttribute('data-id');
+        if (!id) return;
+
+        if (action === 'start') {
+          // 如果正在训练中，先停止 (用户点击新的动作即停止旧的)
+          if (active.phase !== 'idle' && active.phase !== 'finished') {
+            stopTimer();
+          }
+          startPresetById(id);
+        } else if (action === 'delete') {
+          if (confirm('确定删除这个动作预设吗？')) {
+            deletePresetById(id);
+          }
+        }
+      });
+
+      // 添加按钮
+      addPresetBtn.addEventListener('click', addPreset);
+
+      // 跳过休息
+      skipRestBtn.addEventListener('click', skipRest);
+
+      // 停止所有
+      stopAllBtn.addEventListener('click', () => {
+        if (confirm('停止当前训练？')) {
+          stopAll();
+        }
+      });
+
+      // 初始化：渲染预设列表
+      renderPresets();
+      resetToIdle();
+
+      // 页面关闭前清理定时器（友好）
+      window.addEventListener('beforeunload', () => {
+        if (active.timer) clearInterval(active.timer);
+      });
+
+      // 用户首次点击页面任意地方激活音频上下文（浏览器限制）
+      document.addEventListener('click', () => {
+        getAudioContext();
+      }, { once: true });
+
+      // 另外如果用户直接按添加按钮，也需要激活音频
+      addPresetBtn.addEventListener('click', () => {
+        getAudioContext();
+      }, { once: false });
+
+      // 点击开始按钮时激活音频
+      presetListContainer.addEventListener('click', (e) => {
+        if (e.target.closest('button')) {
+          getAudioContext();
+        }
+      });
+
+      // 提示：每组默认45秒（如有需要可以在代码中调整 WORK_SEC 常量）
+    })();
+  </script>
+</body>
+</html>
