@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>智能健身计时器</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              work: '#10b981',
+              workGlow: 'rgba(16, 185, 129, 0.35)',
+              rest: '#38bdf8',
+              restGlow: 'rgba(56, 189, 248, 0.35)',
+              prep: '#f59e0b',
+              dark: '#090a0f',
+              card: '#141824',
+              border: '#222938'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Teko:wght@600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+    * {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #090a0f;
+      color: #f8fafc;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .font-num {
+      font-family: 'Teko', sans-serif;
+      letter-spacing: 0.03em;
+    }
+
+    .progress-ring-circle {
+      transition: stroke-dashoffset 0.25s linear, stroke 0.3s ease;
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
+
+    .custom-scroll::-webkit-scrollbar {
+      display: none;
+    }
+    .custom-scroll {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="overflow-x-hidden antialiased">
+
+  <!-- ================= 页面 1：选择训练部位 ================= -->
+  <div id="pageSelectPart" class="min-h-screen flex flex-col p-4 max-w-xl mx-auto w-full transition-opacity duration-200">
+    <!-- 顶部状态栏：无 Logo 图标 -->
+    <div class="flex items-center justify-between py-3 mb-4 border-b border-brand-border">
+      <div>
+        <h1 class="text-xl font-bold tracking-tight text-white">今日训练计划</h1>
+        <p class="text-xs text-slate-400 mt-0.5">选择目标部位开始锻炼</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btnSoundGlobal" class="px-3 py-2 rounded-xl bg-slate-800/90 text-xs font-medium text-slate-300 border border-slate-700 flex items-center gap-1.5">
+          <i class="fa-solid fa-volume-high text-brand-work" id="soundPartIcon"></i>
+          <span id="soundPartText">声音开</span>
+        </button>
+        <button id="btnOpenManageParts" class="px-3.5 py-2 rounded-xl bg-brand-card hover:bg-slate-800 text-xs font-semibold text-brand-rest border border-slate-700 flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-layer-group"></i>
+          <span>管理部位</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 部位列表网格：纯净大卡片，不显示动作名字 -->
+    <div class="flex-1">
+      <div id="partsGrid" class="grid grid-cols-2 gap-3.5 pb-8">
+        <!-- 动态注入部位卡片 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 页面 2：动作与计时主视窗 ================= -->
+  <div id="pageWorkout" class="min-h-screen flex flex-col max-w-xl mx-auto w-full hidden transition-opacity duration-200">
+    <!-- 顶部导航：纯文字返还与管理动作 -->
+    <header class="p-4 flex items-center justify-between border-b border-brand-border bg-slate-950/70 backdrop-blur-md sticky top-0 z-20">
+      <button id="btnBackToParts" class="text-xs font-semibold text-slate-300 hover:text-white flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-card border border-slate-800">
+        <i class="fa-solid fa-chevron-left text-[11px] text-brand-rest"></i>
+        <span>返回部位</span>
+      </button>
+
+      <div class="text-center">
+        <h2 id="currentPartTitle" class="text-base font-bold text-white tracking-wide">训练中</h2>
+        <span class="text-[11px] text-brand-work" id="currentPartSub">点击动作自动开始</span>
+      </div>
+
+      <button id="btnOpenManageExercises" class="text-xs font-semibold text-cyan-400 px-3.5 py-2 rounded-xl bg-brand-card border border-slate-800 flex items-center gap-1.5">
+        <i class="fa-solid fa-sliders text-xs"></i>
+        <span>管理动作</span>
+      </button>
+    </header>
+
+    <!-- 横向动作滚动卡片：点击动作自动开始循环 -->
+    <div class="px-4 pt-3.5 pb-2">
+      <div class="flex items-center justify-between text-xs text-slate-400 mb-2 px-1">
+        <span>可选动作（点击即启动）</span>
+        <span id="exCountLabel" class="text-slate-500 font-mono">0 个动作</span>
+      </div>
+      <div id="exerciseChipsContainer" class="flex items-center gap-3 overflow-x-auto pb-2 custom-scroll">
+        <!-- 动作卡片 -->
+      </div>
+    </div>
+
+    <!-- 主圆环计时展示 -->
+    <main class="flex-1 flex flex-col items-center justify-center p-4 relative">
+      <div id="ambientGlow" class="absolute w-64 h-64 rounded-full bg-brand-workGlow blur-3xl pointer-events-none transition-colors duration-500"></div>
+
+      <!-- 阶段徽章 -->
+      <div id="statusBadge" class="px-4 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase mb-3 bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-2 z-10 transition-colors">
+        <span class="w-2 h-2 rounded-full bg-slate-500" id="statusDot"></span>
+        <span id="statusText">请选择上方动作</span>
+      </div>
+
+      <!-- 倒计时圆环 -->
+      <div class="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center z-10 my-1">
+        <svg class="w-full h-full" viewBox="0 0 280 280">
+          <circle cx="140" cy="140" r="120" stroke="currentColor" stroke-width="14" fill="transparent" class="text-slate-900" />
+          <circle id="progressRing" cx="140" cy="140" r="120" stroke="currentColor" stroke-width="14" fill="transparent"
+            stroke-dasharray="753.98" stroke-dashoffset="0" stroke-linecap="round" class="progress-ring-circle text-slate-700" />
+        </svg>
+
+        <div class="absolute inset-0 flex flex-col items-center justify-center text-center p-2">
+          <div id="timeDisplay" class="font-num text-7xl sm:text-8xl font-bold leading-none text-white tracking-tight">--</div>
+          <div id="currentExDisplayName" class="text-sm font-bold text-slate-300 mt-1 max-w-[200px] truncate">等待选择动作</div>
+          <div id="setDisplay" class="text-xs text-slate-400 font-medium mt-1">组数: - / -</div>
+        </div>
+      </div>
+
+      <!-- 大尺寸控制区域 -->
+      <div class="w-full max-w-sm flex flex-col gap-3 mt-5 z-10">
+        <div class="grid grid-cols-2 gap-3">
+          <button id="btnPause" class="w-full py-4 rounded-2xl bg-blue-600 active:scale-98 text-white font-bold text-base shadow-lg shadow-blue-600/30 transition flex items-center justify-center gap-2 disabled:opacity-40" disabled>
+            <i class="fa-solid fa-pause text-sm" id="pauseIcon"></i>
+            <span id="pauseText">暂停</span>
+          </button>
+          <button id="btnSkip" class="w-full py-4 rounded-2xl bg-brand-card active:scale-98 text-slate-100 font-bold text-base border border-slate-700 shadow-md transition flex items-center justify-center gap-2 disabled:opacity-40" disabled>
+            <i class="fa-solid fa-forward-step text-brand-rest text-sm"></i>
+            <span>跳过此阶段</span>
+          </button>
+        </div>
+        <button id="btnReset" class="w-full py-3.5 rounded-2xl bg-transparent active:scale-98 text-rose-400 font-semibold text-sm border border-rose-500/30 hover:bg-rose-950/20 transition flex items-center justify-center gap-2 disabled:opacity-30" disabled>
+          <i class="fa-solid fa-rotate-left text-xs"></i>
+          <span>退出当前动作</span>
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <!-- ================= 弹窗：部位管理 ================= -->
+  <div id="modalManageParts" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-brand-card border border-brand-border rounded-t-3xl sm:rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+      <div class="p-4 border-b border-brand-border flex items-center justify-between">
+        <h3 class="text-sm font-bold text-white">管理训练部位</h3>
+        <button id="btnClosePartModal" class="text-slate-400 hover:text-white p-1 text-sm font-bold">完成</button>
+      </div>
+
+      <!-- 部位列表 -->
+      <div class="p-4 overflow-y-auto flex-1 space-y-2.5 custom-scroll" id="partManageList"></div>
+
+      <!-- 添加新部位 -->
+      <div class="p-4 border-t border-brand-border bg-slate-950/80">
+        <label class="block text-xs font-semibold text-slate-300 mb-2">添加新部位</label>
+        <div class="flex gap-2">
+          <input type="text" id="inpNewPartName" placeholder="如: 腿部、背部、胸肌" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-work">
+          <button id="btnAddNewPart" class="px-4 py-2.5 bg-brand-work text-slate-950 font-bold text-xs rounded-xl shadow-md whitespace-nowrap">
+            添加
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 弹窗：当前部位动作管理 ================= -->
+  <div id="modalManageExercises" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-brand-card border border-brand-border rounded-t-3xl sm:rounded-2xl w-full max-w-md max-h-[88vh] flex flex-col shadow-2xl overflow-hidden">
+      <div class="p-4 border-b border-brand-border flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-bold text-white">管理动作</h3>
+          <span class="text-[11px] text-brand-rest" id="modalPartIndicator">当前部位</span>
+        </div>
+        <button id="btnCloseExModal" class="text-slate-400 hover:text-white p-1 text-sm font-bold">完成</button>
+      </div>
+
+      <!-- 动作列表 -->
+      <div class="p-4 overflow-y-auto flex-1 space-y-2 custom-scroll" id="exerciseManageList"></div>
+
+      <!-- 添加动作表单 -->
+      <div class="p-4 border-t border-brand-border bg-slate-950/80 space-y-2.5">
+        <label class="block text-xs font-semibold text-slate-300">添加该部位动作</label>
+        <input type="text" id="inpNewExName" placeholder="动作名称 (如: 杠铃深蹲)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-work">
+        
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <span class="block text-[11px] text-slate-400 mb-1">组数</span>
+            <input type="number" id="inpNewExSets" value="4" min="1" max="20" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-center text-sm text-white">
+          </div>
+          <div>
+            <span class="block text-[11px] text-slate-400 mb-1">动作(秒)</span>
+            <input type="number" id="inpNewExWork" value="40" min="5" step="5" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-center text-sm text-white">
+          </div>
+          <div>
+            <span class="block text-[11px] text-slate-400 mb-1">休息(秒)</span>
+            <input type="number" id="inpNewExRest" value="60" min="5" step="5" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-center text-sm text-white">
+          </div>
+        </div>
+
+        <button id="btnAddNewExercise" class="w-full py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-bold text-xs rounded-xl shadow-md mt-1">
+          保存并添加动作
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ========================================================
+       1. 数据结构与 LocalStorage 本地持久化 (不设重置按钮)
+       ======================================================== */
+    const STORAGE_KEY_PARTS = 'flowfit_parts_data_v2';
+    const STORAGE_KEY_EXERCISES = 'flowfit_exercises_data_v2';
+
+    // 仅在首次无任何数据时提供初始基础库
+    const initialParts = [
+      { id: 'part_chest', name: '胸部训练' },
+      { id: 'part_back', name: '背部训练' },
+      { id: 'part_legs', name: '腿部训练' },
+      { id: 'part_shoulders', name: '肩部训练' },
+      { id: 'part_arms', name: '手臂训练' },
+      { id: 'part_core', name: '核心腹肌' }
+    ];
+
+    const initialExercises = [
+      { id: 'ex_1', partId: 'part_chest', name: '杠铃卧推', sets: 4, work: 40, rest: 75 },
+      { id: 'ex_2', partId: 'part_chest', name: '上斜哑铃卧推', sets: 4, work: 35, rest: 60 },
+      { id: 'ex_3', partId: 'part_back', name: '引体向上', sets: 4, work: 30, rest: 90 },
+      { id: 'ex_4', partId: 'part_back', name: '高位下拉', sets: 4, work: 40, rest: 60 },
+      { id: 'ex_5', partId: 'part_legs', name: '杠铃深蹲', sets: 4, work: 45, rest: 100 },
+      { id: 'ex_6', partId: 'part_legs', name: '哑铃箭步蹲', sets: 3, work: 35, rest: 60 },
+      { id: 'ex_7', partId: 'part_shoulders', name: '哑铃推举', sets: 4, work: 35, rest: 60 },
+      { id: 'ex_8', partId: 'part_arms', name: '二头弯举', sets: 3, work: 30, rest: 45 },
+      { id: 'ex_9', partId: 'part_core', name: '悬垂举腿', sets: 3, work: 30, rest: 45 }
+    ];
+
+    let parts = [];
+    let exercises = [];
+
+    function initData() {
+      try {
+        const storedParts = localStorage.getItem(STORAGE_KEY_PARTS);
+        const storedEx = localStorage.getItem(STORAGE_KEY_EXERCISES);
+
+        if (storedParts) {
+          parts = JSON.parse(storedParts);
+        } else {
+          parts = [...initialParts];
+          saveParts();
+        }
+
+        if (storedEx) {
+          exercises = JSON.parse(storedEx);
+        } else {
+          exercises = [...initialExercises];
+          saveExercises();
+        }
+      } catch (e) {
+        parts = [...initialParts];
+        exercises = [...initialExercises];
+      }
+    }
+
+    function saveParts() {
+      localStorage.setItem(STORAGE_KEY_PARTS, JSON.stringify(parts));
+    }
+
+    function saveExercises() {
+      localStorage.setItem(STORAGE_KEY_EXERCISES, JSON.stringify(exercises));
+    }
+
+    /* ========================================================
+       2. 音效与严格语音播报规范
+       ======================================================== */
+    let audioCtx = null;
+    let soundEnabled = true;
+
+    function getAudioContext() {
+      if (!audioCtx) {
+        const AudioClass = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioClass();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    function playBeep(freq = 600, duration = 0.12) {
+      if (!soundEnabled) return;
+      try {
+        const ctx = getAudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    function speak(text) {
+      if (!soundEnabled || !('speechSynthesis' in window)) return;
+      try {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'zh-CN';
+        utter.rate = 1.05;
+        utter.pitch = 1.0;
+        window.speechSynthesis.speak(utter);
+      } catch (e) {}
+    }
+
+    /* ========================================================
+       3. 核心计时循环状态机（手免全自动）
+       ======================================================== */
+    let activePart = null;
+    let activeExercise = null;
+    let currentSet = 1;
+    let phase = 'idle'; // idle, prep, work, rest, finished
+    let timeLeft = 0;
+    let phaseTotalTime = 1;
+    let timerId = null;
+    let isPaused = false;
+
+    const RING_CIRCUMFERENCE = 2 * Math.PI * 120; // 753.98
+
+    const pageSelectPart = document.getElementById('pageSelectPart');
+    const pageWorkout = document.getElementById('pageWorkout');
+    const partsGrid = document.getElementById('partsGrid');
+    const currentPartTitle = document.getElementById('currentPartTitle');
+    const exerciseChipsContainer = document.getElementById('exerciseChipsContainer');
+    const exCountLabel = document.getElementById('exCountLabel');
+
+    const progressRing = document.getElementById('progressRing');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const statusBadge = document.getElementById('statusBadge');
+    const statusText = document.getElementById('statusText');
+    const statusDot = document.getElementById('statusDot');
+    const currentExDisplayName = document.getElementById('currentExDisplayName');
+    const setDisplay = document.getElementById('setDisplay');
+    const ambientGlow = document.getElementById('ambientGlow');
+
+    const btnPause = document.getElementById('btnPause');
+    const pauseIcon = document.getElementById('pauseIcon');
+    const pauseText = document.getElementById('pauseText');
+    const btnSkip = document.getElementById('btnSkip');
+    const btnReset = document.getElementById('btnReset');
+
+    // 页面路由切换
+    function goToWorkoutPage(part) {
+      activePart = part;
+      currentPartTitle.textContent = part.name;
+      pageSelectPart.classList.add('hidden');
+      pageWorkout.classList.remove('hidden');
+      resetExerciseWorkout(true);
+      renderExerciseChips();
+    }
+
+    function goToPartsPage() {
+      resetExerciseWorkout(true);
+      activePart = null;
+      pageWorkout.classList.add('hidden');
+      pageSelectPart.classList.remove('hidden');
+      renderPartsGrid();
+    }
+
+    // 渲染部位卡片：去除非必要动作预览，保持清爽
+    function renderPartsGrid() {
+      partsGrid.innerHTML = '';
+      parts.forEach(part => {
+        const count = exercises.filter(e => e.partId === part.id).length;
+        const card = document.createElement('div');
+        card.className = "cursor-pointer p-4 rounded-2xl bg-brand-card border border-brand-border hover:border-slate-700 active:scale-98 transition flex flex-col justify-between min-h-[110px] shadow-sm";
+        card.innerHTML = `
+          <div>
+            <h3 class="text-base font-bold text-white tracking-wide">${escapeHtml(part.name)}</h3>
+            <span class="text-xs text-brand-rest font-medium mt-1 inline-block">${count} 个动作</span>
+          </div>
+          <div class="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-800/80">
+            <span>点击进入</span>
+            <i class="fa-solid fa-arrow-right text-[10px]"></i>
+          </div>
+        `;
+        card.onclick = () => {
+          getAudioContext();
+          goToWorkoutPage(part);
+        };
+        partsGrid.appendChild(card);
+      });
+    }
+
+    // 渲染当前部位动作横向卡片
+    function renderExerciseChips() {
+      exerciseChipsContainer.innerHTML = '';
+      const list = exercises.filter(e => e.partId === activePart.id);
+      exCountLabel.textContent = `${list.length} 个动作`;
+
+      if (list.length === 0) {
+        exerciseChipsContainer.innerHTML = `<div class="text-xs text-slate-500 py-3">当前部位暂无动作，请点击右上角“管理动作”添加</div>`;
+        return;
+      }
+
+      list.forEach(ex => {
+        const isSelected = activeExercise && activeExercise.id === ex.id;
+        const chip = document.createElement('div');
+        chip.className = `flex-shrink-0 cursor-pointer p-3.5 rounded-2xl border transition-all duration-200 min-w-[170px] ${
+          isSelected 
+            ? 'bg-slate-800 border-brand-work shadow-lg shadow-brand-workGlow ring-1 ring-brand-work scale-[1.02]' 
+            : 'bg-brand-card border-brand-border hover:border-slate-700'
+        }`;
+        chip.innerHTML = `
+          <div class="flex items-center justify-between gap-1 mb-1.5">
+            <h4 class="font-bold text-sm text-white truncate">${escapeHtml(ex.name)}</h4>
+            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-900 text-brand-work border border-slate-700">
+              ${ex.sets}组
+            </span>
+          </div>
+          <div class="flex items-center text-[11px] text-slate-400 gap-3">
+            <span><i class="fa-solid fa-play text-brand-work mr-1 text-[9px]"></i>${ex.work}s</span>
+            <span><i class="fa-solid fa-mug-hot text-brand-rest mr-1 text-[9px]"></i>${ex.rest}s</span>
+          </div>
+        `;
+        // 点击后零触控全自动进入流程
+        chip.onclick = () => {
+          getAudioContext();
+          startExerciseFlow(ex);
+        };
+        exerciseChipsContainer.appendChild(chip);
+      });
+    }
+
+    // 点击动作立即启动全流程
+    function startExerciseFlow(ex) {
+      activeExercise = ex;
+      currentSet = 1;
+      isPaused = false;
+      btnPause.disabled = false;
+      btnSkip.disabled = false;
+      btnReset.disabled = false;
+      pauseText.textContent = "暂停";
+      pauseIcon.className = "fa-solid fa-pause text-sm";
+      renderExerciseChips();
+
+      // 准备就绪倒数 (3秒)
+      enterPrepStage();
+    }
+
+    function enterPrepStage() {
+      phase = 'prep';
+      timeLeft = 3;
+      phaseTotalTime = 3;
+      updateUI();
+      playBeep(450, 0.1);
+
+      clearInterval(timerId);
+      timerId = setInterval(() => {
+        if (isPaused) return;
+        timeLeft--;
+        if (timeLeft > 0) {
+          playBeep(450, 0.08);
+          updateUI();
+        } else {
+          enterWorkStage();
+        }
+      }, 1000);
+    }
+
+    // 动作执行阶段：语音严格限制只播报“第X组”
+    function enterWorkStage() {
+      phase = 'work';
+      timeLeft = activeExercise.work;
+      phaseTotalTime = activeExercise.work;
+      updateUI();
+
+      playBeep(750, 0.2);
+      // 动作开始时只播报“第X组”
+      speak(`第${currentSet}组`);
+
+      clearInterval(timerId);
+      timerId = setInterval(() => {
+        if (isPaused) return;
+        timeLeft--;
+        updateUI();
+
+        if (timeLeft <= 0) {
+          if (currentSet < activeExercise.sets) {
+            enterRestStage();
+          } else {
+            enterFinishedStage();
+          }
+        }
+      }, 1000);
+    }
+
+    // 休息阶段：提醒“休息开始”，最后 3 秒倒数 3、2、1
+    function enterRestStage() {
+      phase = 'rest';
+      timeLeft = activeExercise.rest;
+      phaseTotalTime = activeExercise.rest;
+      updateUI();
+
+      playBeep(480, 0.25);
+      // 休息开始播报
+      speak("休息开始");
+
+      clearInterval(timerId);
+      timerId = setInterval(() => {
+        if (isPaused) return;
+        timeLeft--;
+        updateUI();
+
+        // 倒数 3、2、1
+        if (timeLeft === 3) {
+          speak("3");
+          playBeep(650, 0.08);
+        } else if (timeLeft === 2) {
+          speak("2");
+          playBeep(650, 0.08);
+        } else if (timeLeft === 1) {
+          speak("1");
+          playBeep(650, 0.08);
+        } else if (timeLeft <= 0) {
+          currentSet++;
+          enterWorkStage();
+        }
+      }, 1000);
+    }
+
+    function enterFinishedStage() {
+      clearInterval(timerId);
+      phase = 'finished';
+      timeLeft = 0;
+      updateUI();
+      playBeep(900, 0.35);
+      speak("全部完成，太棒了");
+      btnPause.disabled = true;
+      btnSkip.disabled = true;
+    }
+
+    function resetExerciseWorkout(fullReset = false) {
+      clearInterval(timerId);
+      phase = 'idle';
+      if (fullReset) activeExercise = null;
+      currentSet = 1;
+      timeLeft = 0;
+      isPaused = false;
+      btnPause.disabled = true;
+      btnSkip.disabled = true;
+      btnReset.disabled = true;
+      pauseText.textContent = "暂停";
+      pauseIcon.className = "fa-solid fa-pause text-sm";
+      updateUI();
+      if (activePart) renderExerciseChips();
+    }
+
+    function updateUI() {
+      timeDisplay.textContent = timeLeft > 0 ? timeLeft : (phase === 'finished' ? 'DONE' : '--');
+
+      if (!activeExercise || phase === 'idle') {
+        statusText.textContent = '请选择上方动作';
+        statusDot.className = 'w-2 h-2 rounded-full bg-slate-500';
+        statusBadge.className = 'px-4 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase mb-3 bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-2 z-10';
+        currentExDisplayName.textContent = '等待选择动作';
+        setDisplay.textContent = '组数: - / -';
+        progressRing.style.strokeDashoffset = '0';
+        progressRing.style.stroke = '#334155';
+        ambientGlow.className = 'absolute w-64 h-64 rounded-full bg-brand-workGlow blur-3xl pointer-events-none opacity-20';
+        return;
+      }
+
+      currentExDisplayName.textContent = activeExercise.name;
+      setDisplay.textContent = `第 ${currentSet} / ${activeExercise.sets} 组`;
+
+      let progress = phaseTotalTime > 0 ? (timeLeft / phaseTotalTime) : 0;
+      let offset = RING_CIRCUMFERENCE * (1 - progress);
+      progressRing.style.strokeDashoffset = offset;
+
+      if (phase === 'prep') {
+        statusText.textContent = '准备就绪';
+        statusDot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-ping';
+        statusBadge.className = 'px-4 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase mb-3 bg-amber-950/70 text-amber-300 border border-amber-600/60 flex items-center gap-2 z-10';
+        progressRing.style.stroke = '#f59e0b';
+        ambientGlow.className = 'absolute w-64 h-64 rounded-full bg-amber-500/20 blur-3xl pointer-events-none';
+      } else if (phase === 'work') {
+        statusText.textContent = `动作中 · 第${currentSet}组`;
+        statusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+        statusBadge.className = 'px-4 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase mb-3 bg-emerald-950/70 text-emerald-300 border border-emerald-600/60 flex items-center gap-2 z-10';
+        progressRing.style.stroke = '#10b981';
+        ambientGlow.className = 'absolute w-64 h-64 rounded-full bg-emerald-500/25 blur-3xl pointer-events-none';
+      } else if (phase === 'rest') {
+        statusText.textContent = '组间休息';
+        statusDot.className = 'w-2 h-2 rounded-full bg-sky-400 animate-pulse';
+        statusBadge.className = 'px-4 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase mb-3 bg-sky-950/70 text-sky-300 border border-sky-600/60 flex items-center gap-2 z-10';
+        progressRing.style.stroke = '#38bdf8';
+        ambientGlow.className = 'absolute w-64 h-64 rounded-full bg-sky-500/25 blur-3xl pointer-events-none';
+      } else if (phase === 'finished') {
+        statusText.textContent = '已完成全部组数';
+        statusDot.className = 'w-2 h-2 rounded-full bg-purple-400';
+        statusBadge.className = 'px-4 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase mb-3 bg-purple-950/70 text-purple-300 border border-purple-600/60 flex items-center gap-2 z-10';
+        progressRing.style.stroke = '#a855f7';
+        ambientGlow.className = 'absolute w-64 h-64 rounded-full bg-purple-500/25 blur-3xl pointer-events-none';
+      }
+    }
+
+    // 控制操作
+    btnPause.onclick = () => {
+      getAudioContext();
+      if (phase === 'idle' || phase === 'finished') return;
+      isPaused = !isPaused;
+      if (isPaused) {
+        pauseText.textContent = "继续";
+        pauseIcon.className = "fa-solid fa-play text-sm text-brand-work";
+        statusText.textContent = "已暂停";
+      } else {
+        pauseText.textContent = "暂停";
+        pauseIcon.className = "fa-solid fa-pause text-sm";
+      }
+    };
+
+    btnSkip.onclick = () => {
+      getAudioContext();
+      if (phase === 'idle' || phase === 'finished') return;
+      if (phase === 'prep') {
+        enterWorkStage();
+      } else if (phase === 'work') {
+        if (currentSet < activeExercise.sets) {
+          enterRestStage();
+        } else {
+          enterFinishedStage();
+        }
+      } else if (phase === 'rest') {
+        currentSet++;
+        enterWorkStage();
+      }
+    };
+
+    btnReset.onclick = () => {
+      resetExerciseWorkout(true);
+    };
+
+    document.getElementById('btnBackToParts').onclick = () => {
+      goToPartsPage();
+    };
+
+    /* ========================================================
+       4. 部位管理（增删、重命名，联动清理动作，绝无恢复默认逻辑）
+       ======================================================== */
+    const modalManageParts = document.getElementById('modalManageParts');
+    const partManageList = document.getElementById('partManageList');
+    const btnOpenManageParts = document.getElementById('btnOpenManageParts');
+    const btnClosePartModal = document.getElementById('btnClosePartModal');
+    const btnAddNewPart = document.getElementById('btnAddNewPart');
+    const inpNewPartName = document.getElementById('inpNewPartName');
+
+    btnOpenManageParts.onclick = () => {
+      renderPartManageList();
+      modalManageParts.classList.remove('hidden');
+    };
+
+    btnClosePartModal.onclick = () => {
+      modalManageParts.classList.add('hidden');
+      renderPartsGrid();
+    };
+
+    function renderPartManageList() {
+      partManageList.innerHTML = '';
+      parts.forEach(part => {
+        const item = document.createElement('div');
+        item.className = 'flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-brand-border';
+        item.innerHTML = `
+          <div class="flex-1 pr-2">
+            <span class="font-bold text-sm text-white">${escapeHtml(part.name)}</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button class="px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-xs" onclick="renamePart('${part.id}')">重命名</button>
+            <button class="px-2.5 py-1.5 rounded-lg bg-rose-950/60 text-rose-400 hover:bg-rose-900/80 text-xs" onclick="deletePart('${part.id}')">删除</button>
+          </div>
+        `;
+        partManageList.appendChild(item);
+      });
+    }
+
+    btnAddNewPart.onclick = () => {
+      const name = inpNewPartName.value.trim();
+      if (!name) return;
+      const newPart = {
+        id: 'part_' + Date.now(),
+        name
+      };
+      parts.push(newPart);
+      saveParts();
+      inpNewPartName.value = '';
+      renderPartManageList();
+    };
+
+    window.renamePart = function(partId) {
+      const part = parts.find(p => p.id === partId);
+      if (!part) return;
+      const newName = prompt('请输入新名称：', part.name);
+      if (newName && newName.trim()) {
+        part.name = newName.trim();
+        saveParts();
+        renderPartManageList();
+      }
+    };
+
+    window.deletePart = function(partId) {
+      if (parts.length <= 1) {
+        alert('请至少保留一个部位');
+        return;
+      }
+      // 联动删除该部位的所有动作
+      parts = parts.filter(p => p.id !== partId);
+      exercises = exercises.filter(e => e.partId !== partId);
+      saveParts();
+      saveExercises();
+      renderPartManageList();
+    };
+
+    /* ========================================================
+       5. 动作管理（按当前部位增删）
+       ======================================================== */
+    const modalManageExercises = document.getElementById('modalManageExercises');
+    const exerciseManageList = document.getElementById('exerciseManageList');
+    const btnOpenManageExercises = document.getElementById('btnOpenManageExercises');
+    const btnCloseExModal = document.getElementById('btnCloseExModal');
+    const btnAddNewExercise = document.getElementById('btnAddNewExercise');
+    const modalPartIndicator = document.getElementById('modalPartIndicator');
+
+    btnOpenManageExercises.onclick = () => {
+      modalPartIndicator.textContent = `当前部位：${activePart.name}`;
+      renderExerciseManageList();
+      modalManageExercises.classList.remove('hidden');
+    };
+
+    btnCloseExModal.onclick = () => {
+      modalManageExercises.classList.add('hidden');
+      renderExerciseChips();
+    };
+
+    function renderExerciseManageList() {
+      exerciseManageList.innerHTML = '';
+      const list = exercises.filter(e => e.partId === activePart.id);
+      if (list.length === 0) {
+        exerciseManageList.innerHTML = `<div class="text-xs text-slate-500 py-4 text-center">暂无动作，请在下方添加</div>`;
+        return;
+      }
+
+      list.forEach(ex => {
+        const item = document.createElement('div');
+        item.className = 'flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-brand-border';
+        item.innerHTML = `
+          <div>
+            <div class="font-bold text-sm text-white">${escapeHtml(ex.name)}</div>
+            <div class="text-[11px] text-slate-400 mt-0.5">${ex.sets}组 · 动作${ex.work}s · 休息${ex.rest}s</div>
+          </div>
+          <button class="px-2.5 py-1.5 rounded-lg bg-rose-950/60 text-rose-400 hover:bg-rose-900/80 text-xs" onclick="deleteExercise('${ex.id}')">删除</button>
+        `;
+        exerciseManageList.appendChild(item);
+      });
+    }
+
+    btnAddNewExercise.onclick = () => {
+      const name = document.getElementById('inpNewExName').value.trim();
+      const sets = parseInt(document.getElementById('inpNewExSets').value) || 4;
+      const work = parseInt(document.getElementById('inpNewExWork').value) || 30;
+      const rest = parseInt(document.getElementById('inpNewExRest').value) || 60;
+
+      if (!name) {
+        alert('请输入动作名称');
+        return;
+      }
+
+      const newEx = {
+        id: 'ex_' + Date.now(),
+        partId: activePart.id,
+        name,
+        sets,
+        work,
+        rest
+      };
+
+      exercises.push(newEx);
+      saveExercises();
+      document.getElementById('inpNewExName').value = '';
+      renderExerciseManageList();
+    };
+
+    window.deleteExercise = function(exId) {
+      exercises = exercises.filter(e => e.id !== exId);
+      saveExercises();
+      renderExerciseManageList();
+      if (activeExercise && activeExercise.id === exId) {
+        resetExerciseWorkout(true);
+      }
+    };
+
+    // 声音全局切换
+    document.getElementById('btnSoundGlobal').onclick = () => {
+      soundEnabled = !soundEnabled;
+      const icon = document.getElementById('soundPartIcon');
+      const text = document.getElementById('soundPartText');
+      if (soundEnabled) {
+        icon.className = "fa-solid fa-volume-high text-brand-work";
+        text.textContent = "声音开";
+        playBeep(600, 0.1);
+      } else {
+        icon.className = "fa-solid fa-volume-xmark text-slate-500";
+        text.textContent = "静音中";
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      }
+    };
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, s => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[s]);
+    }
+
+    // 初始化
+    window.addEventListener('DOMContentLoaded', () => {
+      initData();
+      renderPartsGrid();
+      updateUI();
+    });
+  </script>
+</body>
+</html>
