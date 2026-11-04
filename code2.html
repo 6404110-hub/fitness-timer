@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>智能健身计时器</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <style>
+    :root {
+      --bg: #090a0f;
+      --card-bg: #141722;
+      --accent-work: #10b981;
+      --accent-work-glow: rgba(16, 185, 129, 0.4);
+      --accent-rest: #38bdf8;
+      --accent-rest-glow: rgba(56, 189, 248, 0.4);
+      --accent-warn: #f59e0b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --danger: #ef4444;
+      --border: #232936;
+      /* 适配 iPhone 顶部安全区（灵动岛/刘海） */
+      --safe-top: env(safe-area-inset-top, 20px);
+      --safe-bottom: env(safe-area-inset-bottom, 20px);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      /* 底部留出安全区 */
+      padding-bottom: var(--safe-bottom);
+    }
+
+    /* 顶部导航栏：严格避开刘海与灵动岛 */
+    header {
+      padding-top: calc(var(--safe-top) + 12px);
+      padding-bottom: 14px;
+      padding-left: 20px;
+      padding-right: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(20, 23, 34, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    /* 顶部操作按钮（增大可触控区域） */
+    .btn-header {
+      background: #1e2433;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      padding: 10px 16px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .btn-header:active {
+      background: #334155;
+      transform: scale(0.96);
+    }
+
+    .btn-back {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* 主界面容器 */
+    .view-container {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      width: 100%;
+    }
+
+    .view-container.active {
+      display: flex;
+    }
+
+    /* 视图 1：部位选择网格 */
+    .category-grid {
+      padding: 20px;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .category-card {
+      background: var(--card-bg);
+      border: 1.5px solid var(--border);
+      border-radius: 18px;
+      padding: 22px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 120px;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.2s;
+    }
+
+    .category-card:active {
+      transform: scale(0.97);
+      border-color: var(--accent-work);
+    }
+
+    .category-card h3 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 8px;
+    }
+
+    .category-card .meta {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* 视图 2：动作与训练界面 */
+    .exercise-scroll-container {
+      padding: 16px 16px 12px 16px;
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .exercise-scroll-container::-webkit-scrollbar {
+      display: none;
+    }
+
+    .exercise-card {
+      flex: 0 0 auto;
+      width: 155px;
+      background: var(--card-bg);
+      border: 1.5px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      cursor: pointer;
+      scroll-snap-align: start;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .exercise-card.active {
+      border-color: var(--accent-work);
+      background: #142327;
+      transform: scale(1.02);
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2);
+    }
+
+    .exercise-card h4 {
+      font-size: 1.05rem;
+      margin-bottom: 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .exercise-card .meta {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* 主计时显示区 */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 20px;
+    }
+
+    .status-badge {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 6px 18px;
+      border-radius: 30px;
+      margin-bottom: 14px;
+      background: #1e293b;
+      color: var(--text-muted);
+      transition: all 0.3s ease;
+    }
+
+    .status-badge.prep {
+      background: rgba(245, 158, 11, 0.2);
+      color: var(--accent-warn);
+    }
+
+    .status-badge.work {
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--accent-work);
+    }
+
+    .status-badge.rest {
+      background: rgba(56, 189, 248, 0.2);
+      color: var(--accent-rest);
+    }
+
+    /* 大圆环计时器 */
+    .timer-wrap {
+      position: relative;
+      width: 270px;
+      height: 270px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .timer-svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .timer-bg {
+      fill: none;
+      stroke: #1e2433;
+      stroke-width: 12;
+    }
+
+    .timer-bar {
+      fill: none;
+      stroke: var(--accent-work);
+      stroke-width: 12;
+      stroke-linecap: round;
+      stroke-dasharray: 785;
+      stroke-dashoffset: 0;
+      transition: stroke-dashoffset 0.1s linear, stroke 0.3s ease;
+    }
+
+    .timer-content {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .time-val {
+      font-size: 5rem;
+      font-weight: 800;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -2px;
+    }
+
+    .set-val {
+      font-size: 1.3rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-top: 10px;
+    }
+
+    /* 加大控制操作区 */
+    .controls-container {
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-top: 8px;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .btn-large {
+      flex: 1;
+      padding: 18px 24px;
+      font-size: 1.25rem;
+      font-weight: 700;
+      border-radius: 18px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.1s active;
+    }
+
+    .btn-large:active {
+      transform: scale(0.97);
+    }
+
+    .btn-toggle {
+      background: #2563eb;
+      color: #ffffff;
+      box-shadow: 0 4px 18px rgba(37, 99, 235, 0.35);
+    }
+
+    .btn-toggle.paused {
+      background: var(--accent-work);
+      box-shadow: 0 4px 18px var(--accent-work-glow);
+    }
+
+    .btn-skip {
+      background: #1e293b;
+      color: #f1f5f9;
+      border: 1.5px solid #334155;
+    }
+
+    .btn-reset {
+      width: 100%;
+      background: transparent;
+      color: #ef4444;
+      border: 1.5px solid rgba(239, 68, 68, 0.4);
+      padding: 15px 20px;
+      font-size: 1.05rem;
+      font-weight: 600;
+      border-radius: 16px;
+    }
+
+    /* 弹窗通用样式 */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      display: none;
+      align-items: flex-end;
+      z-index: 50;
+    }
+
+    .modal.show {
+      display: flex;
+    }
+
+    .modal-sheet {
+      background: var(--card-bg);
+      width: 100%;
+      max-height: 85vh;
+      border-radius: 24px 24px 0 0;
+      padding: 24px 20px calc(var(--safe-bottom) + 20px) 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .sheet-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 6px;
+    }
+
+    .input-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .input-field label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .input-field input {
+      background: #090a0f;
+      border: 1px solid #334155;
+      padding: 12px 14px;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    .list-edit {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .edit-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #0f131c;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+
+    .btn-delete {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ================= 视图 1：部位选择页面 ================= -->
+  <div id="viewCategories" class="view-container active">
+    <header>
+      <div class="header-title">选择训练部位</div>
+      <button class="btn-header" id="btnManageCategories">管理部位</button>
+    </header>
+
+    <div class="category-grid" id="categoryGrid"></div>
+  </div>
+
+  <!-- ================= 视图 2：动作与训练计时页面 ================= -->
+  <div id="viewWorkout" class="view-container">
+    <header>
+      <div class="header-left">
+        <button class="btn-back" id="btnBackToCategories">← 切换部位</button>
+        <div class="header-title" id="currentCategoryTitle">部位名称</div>
+      </div>
+      <button class="btn-header" id="btnManageExercises">管理动作</button>
+    </header>
+
+    <!-- 顶部动作横向列表：点击立即启动 -->
+    <div class="exercise-scroll-container" id="exerciseScroll"></div>
+
+    <main>
+      <div class="status-badge" id="statusBadge">请选择上方动作</div>
+
+      <div class="timer-wrap">
+        <svg class="timer-svg" viewBox="0 0 270 270">
+          <circle class="timer-bg" cx="135" cy="135" r="125" />
+          <circle class="timer-bar" id="timerProgress" cx="135" cy="135" r="125" />
+        </svg>
+        <div class="timer-content">
+          <div class="time-val" id="timeDisplay">--</div>
+          <div class="set-val" id="setDisplay">组数: - / -</div>
+        </div>
+      </div>
+
+      <!-- 加大操作按钮 -->
+      <div class="controls-container">
+        <div class="btn-row">
+          <button class="btn-large btn-toggle" id="btnPause">暂停</button>
+          <button class="btn-large btn-skip" id="btnSkip">跳过此阶段</button>
+        </div>
+        <button class="btn-reset" id="btnReset">退出当前动作</button>
+      </div>
+    </main>
+  </div>
+
+  <!-- ================= 弹窗：管理部位 ================= -->
+  <div class="modal" id="modalCategories">
+    <div class="modal-sheet">
+      <div class="sheet-head">
+        <h3>管理训练部位</h3>
+        <button class="btn-header" id="btnCloseCatModal">完成</button>
+      </div>
+
+      <div class="input-field">
+        <label>新增部位名称</label>
+        <div style="display:flex; gap:10px;">
+          <input type="text" id="inpCatName" placeholder="例如：胸部训练" style="flex:1;">
+          <button class="btn-header" id="btnAddCategory" style="background:#2563eb; color:#fff; border:none; padding:0 20px;">添加</button>
+        </div>
+      </div>
+
+      <h4 style="margin-top:10px; color:var(--text-muted); font-size:0.85rem;">已创建部位</h4>
+      <div class="list-edit" id="catListEdit"></div>
+    </div>
+  </div>
+
+  <!-- ================= 弹窗：管理动作 ================= -->
+  <div class="modal" id="modalExercises">
+    <div class="modal-sheet">
+      <div class="sheet-head">
+        <h3 id="modalExerciseHeader">管理动作</h3>
+        <button class="btn-header" id="btnCloseExModal">完成</button>
+      </div>
+
+      <div class="input-field">
+        <label>动作名称</label>
+        <input type="text" id="inpExName" placeholder="例如：哑铃推举">
+      </div>
+      <div style="display:flex; gap:10px;">
+        <div class="input-field" style="flex:1;">
+          <label>组数</label>
+          <input type="number" id="inpExSets" value="4" min="1">
+        </div>
+        <div class="input-field" style="flex:1;">
+          <label>单组时间(秒)</label>
+          <input type="number" id="inpExWork" value="40" min="5">
+        </div>
+        <div class="input-field" style="flex:1;">
+          <label>休息时间(秒)</label>
+          <input type="number" id="inpExRest" value="60" min="5">
+        </div>
+      </div>
+      <button class="btn-large btn-toggle" style="padding:14px; font-size:1rem;" id="btnAddExercise">添加动作到该部位</button>
+
+      <h4 style="margin-top:10px; color:var(--text-muted); font-size:0.85rem;">当前部位动作</h4>
+      <div class="list-edit" id="exListEdit"></div>
+    </div>
+  </div>
+
+  <script>
+    // 数据持久化
+    let categories = JSON.parse(localStorage.getItem('user_categories')) || [
+      { id: 'chest', name: '胸部训练' },
+      { id: 'back', name: '背部训练' },
+      { id: 'shoulder', name: '肩部训练' },
+      { id: 'legs', name: '腿部训练' },
+      { id: 'arms', name: '手臂训练' }
+    ];
+
+    let exercises = JSON.parse(localStorage.getItem('user_category_exercises')) || [
+      { id: '1', catId: 'chest', name: '杠铃卧推', sets: 4, work: 40, rest: 75 },
+      { id: '2', catId: 'chest', name: '上斜哑铃推胸', sets: 4, work: 35, rest: 60 },
+      { id: '3', catId: 'back', name: '引体向上', sets: 4, work: 30, rest: 90 },
+      { id: '4', catId: 'back', name: '高位下拉', sets: 4, work: 40, rest: 60 },
+      { id: '5', catId: 'shoulder', name: '哑铃推肩', sets: 4, work: 35, rest: 60 }
+    ];
+
+    function saveData() {
+      localStorage.setItem('user_categories', JSON.stringify(categories));
+      localStorage.setItem('user_category_exercises', JSON.stringify(exercises));
+    }
+
+    // 当前运行状态
+    let activeCategory = null;
+    let currentExercise = null;
+    let currentSet = 1;
+    let phase = 'idle'; // prep, work, rest, idle
+    let timeLeft = 0;
+    let totalPhaseTime = 0;
+    let timerId = null;
+    let isPaused = false;
+
+    // 音频引擎
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playBeep(freq = 600, duration = 0.15) {
+      if (!audioCtx) return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    function speak(text) {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'zh-CN';
+      utterance.rate = 1.05;
+      utterance.pitch = 1;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    // DOM 元素
+    const viewCategories = document.getElementById('viewCategories');
+    const viewWorkout = document.getElementById('viewWorkout');
+    const categoryGrid = document.getElementById('categoryGrid');
+    const currentCategoryTitle = document.getElementById('currentCategoryTitle');
+    const btnBackToCategories = document.getElementById('btnBackToCategories');
+    const exerciseScroll = document.getElementById('exerciseScroll');
+
+    const statusBadge = document.getElementById('statusBadge');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const setDisplay = document.getElementById('setDisplay');
+    const timerProgress = document.getElementById('timerProgress');
+    const btnPause = document.getElementById('btnPause');
+    const btnSkip = document.getElementById('btnSkip');
+    const btnReset = document.getElementById('btnReset');
+
+    // 模态框
+    const modalCategories = document.getElementById('modalCategories');
+    const btnManageCategories = document.getElementById('btnManageCategories');
+    const btnCloseCatModal = document.getElementById('btnCloseCatModal');
+    const inpCatName = document.getElementById('inpCatName');
+    const btnAddCategory = document.getElementById('btnAddCategory');
+    const catListEdit = document.getElementById('catListEdit');
+
+    const modalExercises = document.getElementById('modalExercises');
+    const btnManageExercises = document.getElementById('btnManageExercises');
+    const btnCloseExModal = document.getElementById('btnCloseExModal');
+    const modalExerciseHeader = document.getElementById('modalExerciseHeader');
+    const inpExName = document.getElementById('inpExName');
+    const inpExSets = document.getElementById('inpExSets');
+    const inpExWork = document.getElementById('inpExWork');
+    const inpExRest = document.getElementById('inpExRest');
+    const btnAddExercise = document.getElementById('btnAddExercise');
+    const exListEdit = document.getElementById('exListEdit');
+
+    const CIRCLE_CIRCUMFERENCE = 2 * Math.PI * 125;
+
+    // 1. 渲染部位网格（干净清爽，不加动作名）
+    function renderCategories() {
+      categoryGrid.innerHTML = '';
+      categories.forEach(cat => {
+        const count = exercises.filter(e => e.catId === cat.id).length;
+        const card = document.createElement('div');
+        card.className = 'category-card';
+        card.innerHTML = `
+          <h3>${cat.name}</h3>
+          <div class="meta">${count} 个预设动作 →</div>
+        `;
+        card.onclick = () => {
+          initAudio();
+          openCategory(cat);
+        };
+        categoryGrid.appendChild(card);
+      });
+      renderCatEditList();
+    }
+
+    function openCategory(cat) {
+      activeCategory = cat;
+      currentCategoryTitle.innerText = cat.name;
+      modalExerciseHeader.innerText = `${cat.name} - 动作管理`;
+      viewCategories.classList.remove('active');
+      viewWorkout.classList.add('active');
+      resetWorkoutState();
+      renderCategoryExercises();
+    }
+
+    btnBackToCategories.onclick = () => {
+      resetWorkoutState();
+      activeCategory = null;
+      viewWorkout.classList.remove('active');
+      viewCategories.classList.add('active');
+      renderCategories();
+    };
+
+    // 2. 渲染动作列表
+    function renderCategoryExercises() {
+      exerciseScroll.innerHTML = '';
+      const catExs = exercises.filter(e => e.catId === activeCategory.id);
+      
+      if (catExs.length === 0) {
+        exerciseScroll.innerHTML = '<div style="color:var(--text-muted); font-size:0.9rem; padding:10px;">暂无动作，请点击右上角“管理动作”添加</div>';
+        return;
+      }
+
+      catExs.forEach(ex => {
+        const card = document.createElement('div');
+        card.className = `exercise-card ${currentExercise && currentExercise.id === ex.id ? 'active' : ''}`;
+        card.innerHTML = `
+          <h4>${ex.name}</h4>
+          <div class="meta">
+            ${ex.sets} 组<br>
+            动作 ${ex.work}s · 休息 ${ex.rest}s
+          </div>
+        `;
+        card.onclick = () => {
+          initAudio();
+          startSelectedExercise(ex);
+        };
+        exerciseScroll.appendChild(card);
+      });
+      renderExEditList();
+    }
+
+    // 3. 动作流程执行
+    function startSelectedExercise(ex) {
+      currentExercise = ex;
+      currentSet = 1;
+      isPaused = false;
+      btnPause.innerText = '暂停';
+      btnPause.classList.remove('paused');
+      renderCategoryExercises();
+      startPreparation();
+    }
+
+    function startPreparation() {
+      phase = 'prep';
+      timeLeft = 3;
+      totalPhaseTime = 3;
+      updateUI();
+      playBeep(500, 0.1);
+
+      clearInterval(timerId);
+      timerId = setInterval(() => {
+        if (isPaused) return;
+        timeLeft--;
+        if (timeLeft > 0) {
+          playBeep(500, 0.08);
+          updateUI();
+        } else {
+          startWork();
+        }
+      }, 1000);
+    }
+
+    function startWork() {
+      phase = 'work';
+      timeLeft = currentExercise.work;
+      totalPhaseTime = currentExercise.work;
+      updateUI();
+      
+      // 播报：仅播报“第 X 组”
+      playBeep(880, 0.25);
+      speak(`第${currentSet}组`);
+
+      clearInterval(timerId);
+      timerId = setInterval(() => {
+        if (isPaused) return;
+        timeLeft--;
+        updateUI();
+
+        if (timeLeft <= 0) {
+          if (currentSet < currentExercise.sets) {
+            startRest();
+          } else {
+            completeWorkout();
+          }
+        }
+      }, 1000);
+    }
+
+    function startRest() {
+      phase = 'rest';
+      timeLeft = currentExercise.rest;
+      totalPhaseTime = currentExercise.rest;
+      updateUI();
+
+      // 休息开始播报
+      playBeep(440, 0.3);
+      speak('休息开始');
+
+      clearInterval(timerId);
+      timerId = setInterval(() => {
+        if (isPaused) return;
+        timeLeft--;
+        updateUI();
+
+        // 倒数 3、2、1
+        if (timeLeft === 3) {
+          speak('3');
+          playBeep(600, 0.08);
+        } else if (timeLeft === 2) {
+          speak('2');
+          playBeep(600, 0.08);
+        } else if (timeLeft === 1) {
+          speak('1');
+          playBeep(600, 0.08);
+        } else if (timeLeft <= 0) {
+          currentSet++;
+          startWork();
+        }
+      }, 1000);
+    }
+
+    function completeWorkout() {
+      clearInterval(timerId);
+      phase = 'idle';
+      timeLeft = 0;
+      updateUI();
+      playBeep(1000, 0.4);
+      speak('全部完成，太棒了');
+      statusBadge.innerText = '已完成全部组数！';
+      statusBadge.className = 'status-badge work';
+      timeDisplay.innerText = '完成';
+    }
+
+    function resetWorkoutState() {
+      clearInterval(timerId);
+      phase = 'idle';
+      currentExercise = null;
+      currentSet = 1;
+      timeLeft = 0;
+      isPaused = false;
+      btnPause.innerText = '暂停';
+      btnPause.classList.remove('paused');
+      updateUI();
+    }
+
+    function updateUI() {
+      timeDisplay.innerText = timeLeft > 0 ? timeLeft : '--';
+
+      if (!currentExercise) {
+        statusBadge.innerText = '请选择上方动作';
+        statusBadge.className = 'status-badge';
+        setDisplay.innerText = '组数: - / -';
+        timerProgress.style.strokeDashoffset = '0';
+        timerProgress.style.stroke = 'var(--text-muted)';
+        return;
+      }
+
+      setDisplay.innerText = `第 ${currentSet} / ${currentExercise.sets} 组`;
+
+      let progress = totalPhaseTime > 0 ? (timeLeft / totalPhaseTime) : 0;
+      let offset = CIRCLE_CIRCUMFERENCE * (1 - progress);
+      timerProgress.style.strokeDashoffset = offset;
+
+      if (phase === 'prep') {
+        statusBadge.innerText = '预备就位';
+        statusBadge.className = 'status-badge prep';
+        timerProgress.style.stroke = 'var(--accent-warn)';
+      } else if (phase === 'work') {
+        statusBadge.innerText = '动作进行中';
+        statusBadge.className = 'status-badge work';
+        timerProgress.style.stroke = 'var(--accent-work)';
+      } else if (phase === 'rest') {
+        statusBadge.innerText = '组间休息';
+        statusBadge.className = 'status-badge rest';
+        timerProgress.style.stroke = 'var(--accent-rest)';
+      }
+    }
+
+    // 控制按钮
+    btnPause.onclick = () => {
+      initAudio();
+      if (phase === 'idle') return;
+      isPaused = !isPaused;
+      if (isPaused) {
+        btnPause.innerText = '继续';
+        btnPause.classList.add('paused');
+        statusBadge.innerText = '已暂停';
+      } else {
+        btnPause.innerText = '暂停';
+        btnPause.classList.remove('paused');
+      }
+    };
+
+    btnSkip.onclick = () => {
+      initAudio();
+      if (phase === 'idle') return;
+      if (phase === 'prep') {
+        startWork();
+      } else if (phase === 'work') {
+        if (currentSet < currentExercise.sets) {
+          startRest();
+        } else {
+          completeWorkout();
+        }
+      } else if (phase === 'rest') {
+        currentSet++;
+        startWork();
+      }
+    };
+
+    btnReset.onclick = () => {
+      resetWorkoutState();
+      renderCategoryExercises();
+    };
+
+    // 4. 管理部位逻辑
+    btnManageCategories.onclick = () => modalCategories.classList.add('show');
+    btnCloseCatModal.onclick = () => modalCategories.classList.remove('show');
+
+    btnAddCategory.onclick = () => {
+      const name = inpCatName.value.trim();
+      if (!name) return alert('请输入部位名称');
+      categories.push({ id: 'cat_' + Date.now(), name });
+      saveData();
+      inpCatName.value = '';
+      renderCategories();
+    };
+
+    function renderCatEditList() {
+      catListEdit.innerHTML = '';
+      categories.forEach(cat => {
+        const item = document.createElement('div');
+        item.className = 'edit-item';
+        item.innerHTML = `
+          <div style="font-weight:600;">${cat.name}</div>
+          <button class="btn-delete" onclick="deleteCategory('${cat.id}')">删除</button>
+        `;
+        catListEdit.appendChild(item);
+      });
+    }
+
+    window.deleteCategory = function(id) {
+      if (categories.length <= 1) return alert('请至少保留一个部位');
+      categories = categories.filter(c => c.id !== id);
+      exercises = exercises.filter(e => e.catId !== id);
+      saveData();
+      renderCategories();
+    };
+
+    // 5. 管理动作逻辑
+    btnManageExercises.onclick = () => {
+      renderExEditList();
+      modalExercises.classList.add('show');
+    };
+    btnCloseExModal.onclick = () => modalExercises.classList.remove('show');
+
+    btnAddExercise.onclick = () => {
+      const name = inpExName.value.trim();
+      const sets = parseInt(inpExSets.value) || 4;
+      const work = parseInt(inpExWork.value) || 35;
+      const rest = parseInt(inpExRest.value) || 60;
+
+      if (!name) return alert('请输入动作名称');
+
+      exercises.push({
+        id: 'ex_' + Date.now(),
+        catId: activeCategory.id,
+        name,
+        sets,
+        work,
+        rest
+      });
+
+      saveData();
+      inpExName.value = '';
+      renderCategoryExercises();
+    };
+
+    function renderExEditList() {
+      exListEdit.innerHTML = '';
+      const catExs = exercises.filter(e => e.catId === activeCategory.id);
+      catExs.forEach(ex => {
+        const item = document.createElement('div');
+        item.className = 'edit-item';
+        item.innerHTML = `
+          <div>
+            <div style="font-weight:600;">${ex.name}</div>
+            <div style="font-size:0.75rem; color:#94a3b8;">${ex.sets}组 | 动${ex.work}s | 休${ex.rest}s</div>
+          </div>
+          <button class="btn-delete" onclick="deleteExerciseItem('${ex.id}')">删除</button>
+        `;
+        exListEdit.appendChild(item);
+      });
+    }
+
+    window.deleteExerciseItem = function(id) {
+      exercises = exercises.filter(e => e.id !== id);
+      saveData();
+      renderCategoryExercises();
+      if (currentExercise && currentExercise.id === id) {
+        resetWorkoutState();
+      }
+    };
+
+    // 启动初始页面
+    renderCategories();
+    updateUI();
+  </script>
+</body>
+</html>
